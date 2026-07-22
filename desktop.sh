@@ -141,6 +141,11 @@ configure_terminal() {
   local uuid
   uuid="$(gsettings get org.gnome.Ptyxis default-profile-uuid | tr -d "'")"
   gsettings set "org.gnome.Ptyxis.Profile:/org/gnome/Ptyxis/Profiles/${uuid}/" palette 'linux'
+
+  # Overrides Ptyxis's Ctrl+Shift+T/W defaults; shadows bash readline's
+  # Ctrl+T (transpose-chars) and Ctrl+W (unix-word-rubout) in every shell.
+  gsettings set org.gnome.Ptyxis.Shortcuts new-tab '<ctrl>t'
+  gsettings set org.gnome.Ptyxis.Shortcuts close-tab '<ctrl>w'
 }
 
 configure_desktop() {
