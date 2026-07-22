@@ -1,0 +1,31 @@
+[general]
+backend = "groq"
+language = "auto"
+silence_timeout_ms = 2000
+notify = true
+remove_filler_words = true
+filler_words = []
+audio_feedback = false
+audio_feedback_volume = 0.5
+vocabulary = []
+tray = true
+overlay = true
+
+[audio]
+device = "default"
+
+[input]
+key_delay_ms = 2
+backend = "auto"
+
+[groq]
+model = "whisper-large-v3-turbo"
+
+[llm]
+model = "qwen-qwq-32b"
+api_url = "https://api.groq.com/openai/v1/chat/completions"
+
+[overlay]
+theme = "carbon"
+width = 100
+height = 40

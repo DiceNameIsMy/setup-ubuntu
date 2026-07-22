@@ -125,6 +125,9 @@ main() {
   _log "Obsidian"
   install_obsidian
 
+  _log "Speech to text (whisrs)"
+  install_whisrs
+
   _log "Docker group"
   configure_docker_group
 

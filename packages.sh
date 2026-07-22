@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Package installation beyond the OS base image: apt packages, snaps, wine,
-# uv, Claude Code, Tailscale, Obsidian, and docker group/runtime wiring.
+# uv, Claude Code, Tailscale, Obsidian, whisrs, and docker group/runtime wiring.
 # Sourced from setup.sh; relies on _log()/_have()/_have_nvidia_gpu() from there.
 set -euo pipefail
 
@@ -69,6 +69,20 @@ install_tailscale() {
 
 install_obsidian() {
   snap install obsidian --classic
+}
+
+install_whisrs() {
+  if ! _have whisrs; then
+    WHISRS_MINIMAL=1 curl -sSL https://y0sif.github.io/whisrs/install.sh | bash
+  fi
+
+  mkdir -p "$HOME/.config/whisrs"
+  # only seed the template and run onboarding on first install -- don't
+  # clobber an already-configured backend/API key on re-runs
+  if [[ ! -f "$HOME/.config/whisrs/config.toml" ]]; then
+    cp "$script_dir/whisrs-config.toml" "$HOME/.config/whisrs/config.toml"
+    whisrs setup
+  fi
 }
 
 configure_docker_group() {
