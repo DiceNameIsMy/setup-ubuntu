@@ -58,7 +58,7 @@ setup_docker_repo() {
 }
 
 setup_nvidia_container_toolkit_repo() {
-  _have_nvidia_gpu || return
+  _have_nvidia_gpu || return 0
 
   _fetch_apt_keyring https://nvidia.github.io/libnvidia-container/gpgkey \
     /etc/apt/keyrings/nvidia-container-toolkit.gpg

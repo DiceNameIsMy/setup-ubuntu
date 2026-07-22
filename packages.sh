@@ -70,7 +70,7 @@ configure_docker_group() {
 }
 
 configure_nvidia_docker() {
-  _have_nvidia_gpu || return
+  _have_nvidia_gpu || return 0
 
   sudo apt install -y nvidia-container-toolkit
   sudo nvidia-ctk runtime configure --runtime=docker
