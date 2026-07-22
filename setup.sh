@@ -247,7 +247,7 @@ print_followups() {
   echo "  - Restart session or run: exec zsh"
   echo "  - Re-login to apply docker group membership"
   echo "  - Log out and back in so newly installed GNOME extensions activate"
-  echo "  - TODO: Biopass"
+  echo "  - Next: install gaze (curl -fsSL https://gaze.gundulabs.com/install.sh | sh)"
 }
 
 main() {
