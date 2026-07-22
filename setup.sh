@@ -63,7 +63,8 @@ configure_zsh_plugins() {
   z_custom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
   zshrc="$HOME/.zshrc"
 
-  clone_or_update https://github.com/rupa/z.git "$z_custom/plugins/z"
+  # z ships as a built-in oh-my-zsh plugin (the zsh-z rewrite) -- don't clone rupa/z
+  # into custom/plugins/z, it lacks a z.plugin.zsh entry file and shadows the working one
   clone_or_update https://github.com/zsh-users/zsh-autosuggestions "$z_custom/plugins/zsh-autosuggestions"
   clone_or_update https://github.com/zsh-users/zsh-syntax-highlighting "$z_custom/plugins/zsh-syntax-highlighting"
 
@@ -83,6 +84,11 @@ configure_zsh_plugins() {
 
   # drop any existing plugins list (however it's formatted) so ours replaces it cleanly
   grep -q '^plugins=(' "$zshrc" && sed -i '/^plugins=(/,/)/d' "$zshrc"
+  # also drop any existing oh-my-zsh source line so it always ends up after the
+  # plugins array below -- oh-my-zsh reads $plugins at source time, so if the
+  # array comes after (as it does in the stock template), every plugin silently
+  # fails to load
+  sed -i '\#^source \$ZSH/oh-my-zsh\.sh$#d' "$zshrc"
   cat >> "$zshrc" <<'EOF'
 
 plugins=(
@@ -91,9 +97,10 @@ plugins=(
   zsh-autosuggestions
   zsh-syntax-highlighting
 )
+
+source $ZSH/oh-my-zsh.sh
 EOF
 
-  append_if_missing 'source $ZSH/oh-my-zsh.sh' "$zshrc"
   append_if_missing '. "$HOME/.local/bin/env"' "$zshrc"
 }
 
@@ -260,6 +267,10 @@ print_followups() {
   echo "  - Log out and back in so newly installed GNOME extensions activate"
   echo "  - Next: install gaze (curl -fsSL https://gaze.gundulabs.com/install.sh | sh)"
   echo "  - Run: gh auth login (can generate and upload an SSH key for you)"
+}
+
+list_tasks() {
+  declare -F | awk '{print $3}' | grep -v '^main$' | sort
 }
 
 main() {
