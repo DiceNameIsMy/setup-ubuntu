@@ -103,6 +103,13 @@ configure_gnome_extensions() {
   configure_gsnap
   configure_brightness_ddcutil
 
+  # Ubuntu ships these enabled by default; running them alongside
+  # dash-to-dock/gSnap breaks the Activities overview (Super key gets
+  # stuck showing no apps) and crashes gnome-shell with actor-disposal
+  # errors, requiring a logout to recover.
+  gnome-extensions disable ubuntu-dock@ubuntu.com 2>/dev/null || true
+  gnome-extensions disable tiling-assistant@ubuntu.com 2>/dev/null || true
+
   if [[ "$needs_relogin" == true ]]; then
     _log "New GNOME extensions installed; relogin required, then re-run setup.sh to enable them"
   fi
