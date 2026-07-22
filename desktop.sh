@@ -56,6 +56,18 @@ use-modifier=true
 EOF
 }
 
+configure_whisrs_keybinding() {
+  dconf load /org/gnome/settings-daemon/plugins/media-keys/ <<'EOF'
+[/]
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']
+
+[custom-keybindings/custom0]
+binding='<Shift><Super>d'
+command='whisrs toggle'
+name='Toggle STT'
+EOF
+}
+
 configure_brightness_ddcutil() {
   # sleep-multiplier is tuned way above the 1.0 default because these
   # monitors' DDC/CI is unreliable at normal polling speed
@@ -130,4 +142,5 @@ configure_desktop() {
   configure_appearance
   configure_favorite_apps
   configure_terminal
+  configure_whisrs_keybinding
 }
