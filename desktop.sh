@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # GNOME desktop configuration: extensions, extension settings, keyboard layouts.
-# Sourced from setup.sh; relies on log()/have() from there.
+# Sourced from setup.sh; relies on _log() from there.
 set -euo pipefail
 
-gnome_shell_major_version() {
+_gnome_shell_major_version() {
   gnome-shell --version | grep -oP '(?<=GNOME Shell )\d+'
 }
 
-install_gnome_extension() {
+_install_gnome_extension() {
   local uuid="$1"
   gnome-extensions list 2>/dev/null | grep -qx "$uuid" && return
 
   local shell_version info download_path tmp_zip
-  shell_version="$(gnome_shell_major_version)"
+  shell_version="$(_gnome_shell_major_version)"
   info="$(curl -fsSL "https://extensions.gnome.org/extension-info/?uuid=${uuid}&shell_version=${shell_version}")"
   download_path="$(jq -r '.download_url // empty' <<<"$info")"
   if [[ -z "$download_path" ]]; then
-    log "No build of $uuid for GNOME Shell $shell_version; skipping"
+    _log "No build of $uuid for GNOME Shell $shell_version; skipping"
     return
   fi
 
@@ -73,7 +73,7 @@ configure_gnome_extensions() {
     dash-to-dock@micxgx.gmail.com \
     gSnap@micahosborne
   do
-    install_gnome_extension "$uuid"
+    _install_gnome_extension "$uuid"
     gnome-extensions enable "$uuid"
   done
 

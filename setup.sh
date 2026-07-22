@@ -2,13 +2,16 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/zsh.sh"
+source "$script_dir/repos.sh"
+source "$script_dir/packages.sh"
 source "$script_dir/desktop.sh"
 
-log() {
+_log() {
   printf '\n[%s] %s\n' "$(date +'%H:%M:%S')" "$*"
 }
 
-require_sudo() {
+_require_sudo() {
   # `sudo -v` doesn't honor NOPASSWD sudoers rules under sudo-rs (the Rust
   # rewrite, default on newer Ubuntu) when there's no tty -- it still forces
   # an interactive auth prompt. Running a real no-op command does the same
@@ -16,248 +19,53 @@ require_sudo() {
   sudo true
 }
 
-have() {
+_have() {
   command -v "$1" >/dev/null 2>&1
 }
 
-append_if_missing() {
+_append_if_missing() {
   local line="$1"
   local file="$2"
   grep -Fqx "$line" "$file" 2>/dev/null || echo "$line" >> "$file"
 }
 
-clone_or_update() {
+_clone_or_update() {
   local repo="$1"
   local dir="$2"
 
   if [[ -d "$dir/.git" ]]; then
     git -C "$dir" pull --ff-only
   elif [[ -e "$dir" ]]; then
-    log "Skipping $dir because it exists but is not a git repo"
+    _log "Skipping $dir because it exists but is not a git repo"
   else
     git clone "$repo" "$dir"
   fi
 }
 
-set_default_shell_zsh() {
-  local zsh_path
-  zsh_path="$(command -v zsh)"
-  # only run chsh (which needs a password) if zsh isn't already the default
-  if [[ "$(getent passwd "$USER" | cut -d: -f7)" != "$zsh_path" ]]; then
-    chsh -s "$zsh_path"
-    log "Default shell changed to zsh; relogin required"
-  fi
-}
-
-install_oh_my_zsh() {
-  if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
-    # non-interactive install: leave the shell switch to set_default_shell_zsh
-    # and don't let it overwrite the .zshrc we configure afterward
-    RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c \
-      "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-  fi
-}
-
-configure_zsh_plugins() {
-  local z_custom zshrc
-  z_custom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
-  zshrc="$HOME/.zshrc"
-
-  # z ships as a built-in oh-my-zsh plugin (the zsh-z rewrite) -- don't clone rupa/z
-  # into custom/plugins/z, it lacks a z.plugin.zsh entry file and shadows the working one
-  clone_or_update https://github.com/zsh-users/zsh-autosuggestions "$z_custom/plugins/zsh-autosuggestions"
-  clone_or_update https://github.com/zsh-users/zsh-syntax-highlighting "$z_custom/plugins/zsh-syntax-highlighting"
-
-  if [[ ! -f "$zshrc" ]]; then
-    cp "$HOME/.oh-my-zsh/templates/zshrc.zsh-template" "$zshrc"
-  fi
-
-  # make sure a custom or stripped-down .zshrc still ends up with the env var,
-  # theme, and plugins we need, without duplicating anything already there
-  grep -q '^export ZSH=' "$zshrc" || sed -i '1i export ZSH="$HOME/.oh-my-zsh"' "$zshrc"
-
-  if grep -q '^ZSH_THEME=' "$zshrc"; then
-    sed -i 's/^ZSH_THEME=.*/ZSH_THEME="robbyrussell"/' "$zshrc"
-  else
-    sed -i '/^export ZSH=/a ZSH_THEME="robbyrussell"' "$zshrc"
-  fi
-
-  # drop any existing plugins list (however it's formatted) so ours replaces it cleanly
-  grep -q '^plugins=(' "$zshrc" && sed -i '/^plugins=(/,/)/d' "$zshrc"
-  # also drop any existing oh-my-zsh source line so it always ends up after the
-  # plugins array below -- oh-my-zsh reads $plugins at source time, so if the
-  # array comes after (as it does in the stock template), every plugin silently
-  # fails to load
-  sed -i '\#^source \$ZSH/oh-my-zsh\.sh$#d' "$zshrc"
-  cat >> "$zshrc" <<'EOF'
-
-plugins=(
-  git
-  z
-  zsh-autosuggestions
-  zsh-syntax-highlighting
-)
-
-source $ZSH/oh-my-zsh.sh
-EOF
-
-  append_if_missing '. "$HOME/.local/bin/env"' "$zshrc"
-}
-
-fetch_apt_keyring() {
-  local key_url="$1" keyring_path="$2"
-  sudo install -d -m 0755 "$(dirname "$keyring_path")"
-  # skip re-fetching a key that's already trusted locally
-  if [[ ! -f "$keyring_path" ]]; then
-    curl -fsSL "$key_url" | sudo gpg --dearmor -o "$keyring_path"
-  fi
-}
-
-setup_brave_repo() {
-  sudo rm -f /etc/apt/sources.list.d/brave-browser-release.list
-  fetch_apt_keyring https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
-    /etc/apt/keyrings/brave-browser-archive-keyring.gpg
-
-  sudo tee /etc/apt/sources.list.d/brave-browser-release.sources >/dev/null <<EOF
-Types: deb
-URIs: https://brave-browser-apt-release.s3.brave.com
-Suites: stable
-Components: main
-Architectures: amd64 arm64
-Signed-By: /etc/apt/keyrings/brave-browser-archive-keyring.gpg
-EOF
-}
-
-setup_vscode_repo() {
-  fetch_apt_keyring https://packages.microsoft.com/keys/microsoft.asc /etc/apt/keyrings/packages.microsoft.gpg
-
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
-    | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
-}
-
-setup_github_cli_repo() {
-  local keyring_path=/etc/apt/keyrings/githubcli-archive-keyring.gpg
-  sudo install -d -m 0755 /etc/apt/keyrings
-  # the upstream key is already in binary keyring format, so unlike the other
-  # repos here it's written straight through rather than piped through gpg --dearmor
-  if [[ ! -f "$keyring_path" ]]; then
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee "$keyring_path" > /dev/null
-    sudo chmod go+r "$keyring_path"
-  fi
-
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=$keyring_path] https://cli.github.com/packages stable main" \
-    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-}
-
-setup_docker_repo() {
-  fetch_apt_keyring https://download.docker.com/linux/ubuntu/gpg /etc/apt/keyrings/docker.gpg
-
-  # target whatever Ubuntu release this machine actually runs, not a hardcoded one
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" \
-    | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-}
-
-have_nvidia_gpu() {
+_have_nvidia_gpu() {
   lspci -nn 2>/dev/null | grep -qi nvidia
 }
 
-setup_nvidia_container_toolkit_repo() {
-  have_nvidia_gpu || return
-
-  fetch_apt_keyring https://nvidia.github.io/libnvidia-container/gpgkey \
-    /etc/apt/keyrings/nvidia-container-toolkit.gpg
-
-  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-    | sed 's#deb https://#deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit.gpg] https://#' \
-    | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null
-}
-
-configure_nvidia_docker() {
-  have_nvidia_gpu || return
-
-  sudo apt install -y nvidia-container-toolkit
-  sudo nvidia-ctk runtime configure --runtime=docker
-  sudo systemctl restart docker
-}
-
 setup_git() {
-  local configure_git=n
-  read -r -p "Would you like to configure git user.name/user.email? [y/n]:" configure_git
-  if [[ "$configure_git" != "y" ]]; then
+  # already configured -- nothing to do, and don't re-prompt on every re-run
+  if git config --global user.name >/dev/null 2>&1 && git config --global user.email >/dev/null 2>&1; then
     return
   fi
 
-  local name="" email=""
-  read -r -p "Your name: " name
-  read -r -p "Your email: " email
-
-  git config --global user.name "$name"
-  git config --global user.email "$email"
-}
-
-install_base_packages() {
-  sudo dpkg --add-architecture i386
-  sudo apt update
-  sudo apt install -y \
-    ubuntu-drivers-common ca-certificates curl wget \
-    gnupg gnupg2 software-properties-common apt-transport-https \
-    git jq zsh python3 npm nodejs libturbojpeg0 \
-    gnome-shell-extension-manager gnome-browser-connector
-  sudo snap install telegram-desktop
-}
-
-grant_data_ownership() {
-  if [[ -d /data ]]; then
-    sudo chown -R "$USER:$USER" /data
+  local name="" email="" input
+  # if `gh auth login` has already been run, use it as a source of defaults
+  if _have gh && gh auth status >/dev/null 2>&1; then
+    name="$(gh api user --jq '.name // empty' 2>/dev/null || true)"
+    email="$(gh api user --jq '.email // empty' 2>/dev/null || true)"
   fi
-}
 
-install_apt_packages() {
-  sudo apt install -y \
-    brave-browser code gh \
-    wine64 wine32 winbind wine64-preloader \
-    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
-    ddcutil qbittorrent
+  read -r -p "Your name${name:+ [$name]}: " input
+  name="${input:-$name}"
+  read -r -p "Your email${email:+ [$email]}: " input
+  email="${input:-$email}"
 
-  npm i -g @immich/cli
-}
-
-init_wine_prefix() {
-  have wine || return
-  [[ -d "$HOME/.wine" ]] && return
-
-  # skip the Mono/Gecko installer popups; nothing here needs .NET or embedded HTML
-  WINEDLLOVERRIDES="mscoree=;mshtml=" wineboot --init >/dev/null 2>&1
-}
-
-install_uv() {
-  have uv || curl -LsSf https://astral.sh/uv/install.sh | sh
-}
-
-install_claude_code() {
-  if ! have claude && ! have claude-code; then
-    curl -fsSL https://claude.ai/install.sh | bash
-  fi
-}
-
-install_tailscale() {
-  if ! have tailscale; then
-    curl -fsSL https://tailscale.com/install.sh | sh
-    sudo tailscale set --operator="$USER"
-  fi
-}
-
-install_obsidian() {
-  snap install obsidian --classic
-}
-
-configure_docker_group() {
-  getent group docker >/dev/null || sudo groupadd docker
-  # only add the user (and flag the relogin requirement) if not already a member
-  if ! id -nG "$USER" | grep -qw docker; then
-    sudo usermod -aG docker "$USER"
-    log "Added $USER to docker group; relogin required"
-  fi
+  [[ -n "$name" ]] && git config --global user.name "$name"
+  [[ -n "$email" ]] && git config --global user.email "$email"
 }
 
 print_followups() {
@@ -269,66 +77,72 @@ print_followups() {
   echo "  - Run: gh auth login (can generate and upload an SSH key for you)"
 }
 
-list_tasks() {
-  declare -F | awk '{print $3}' | grep -v '^main$' | sort
+_list_tasks() {
+  # functions prefixed with `_` are internal helpers, not standalone steps
+  declare -F | awk '{print $3}' | grep -v '^main$' | grep -v '^_' | sort
 }
 
 main() {
-  require_sudo
+  _require_sudo
 
-  log "Base packages"
+  _log "Base packages"
   install_base_packages
 
-  append_if_missing 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.bashrc"
+  _append_if_missing 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.bashrc"
 
-  log "Grant ownership to the /data folder"
+  _log "Grant ownership to the /data folder"
   grant_data_ownership
 
-  log "Zsh"
+  _log "Zsh"
   set_default_shell_zsh
   install_oh_my_zsh
   configure_zsh_plugins
 
-  log "Repositories"
+  _log "Repositories"
   setup_brave_repo
   setup_vscode_repo
   setup_github_cli_repo
   setup_docker_repo
   setup_nvidia_container_toolkit_repo
 
-  log "APT refresh"
+  _log "APT refresh"
   sudo apt update
 
-  log "Install packages"
+  _log "Install packages"
   install_apt_packages
   init_wine_prefix
 
-  log "uv"
+  _log "uv"
   install_uv
 
-  log "Claude Code"
+  _log "Claude Code"
   install_claude_code
 
-  log "Tailscale"
+  _log "Tailscale"
   install_tailscale
 
-  log "Obsidian"
+  _log "Obsidian"
   install_obsidian
 
-  log "Docker group"
+  _log "Docker group"
   configure_docker_group
 
-  log "NVIDIA container toolkit"
+  _log "NVIDIA container toolkit"
   configure_nvidia_docker
 
-  log "Desktop"
+  _log "Desktop"
   configure_desktop
 
   setup_git
 
-  log "Done"
+  _log "Done"
   print_followups
 }
 
-main "$@"
-
+if [[ "${1:-}" == "list" ]]; then
+  _list_tasks
+elif [[ "${1:-}" ]] && declare -F "$1" >/dev/null; then
+  "$@"
+else
+  main "$@"
+fi
