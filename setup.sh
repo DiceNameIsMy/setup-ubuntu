@@ -6,7 +6,11 @@ log() {
 }
 
 require_sudo() {
-  sudo -v
+  # `sudo -v` doesn't honor NOPASSWD sudoers rules under sudo-rs (the Rust
+  # rewrite, default on newer Ubuntu) when there's no tty -- it still forces
+  # an interactive auth prompt. Running a real no-op command does the same
+  # credential-priming job and works under both classic sudo and sudo-rs.
+  sudo true
 }
 
 have() {
@@ -35,6 +39,7 @@ clone_or_update() {
 set_default_shell_zsh() {
   local zsh_path
   zsh_path="$(command -v zsh)"
+  # only run chsh (which needs a password) if zsh isn't already the default
   if [[ "$(getent passwd "$USER" | cut -d: -f7)" != "$zsh_path" ]]; then
     chsh -s "$zsh_path"
     log "Default shell changed to zsh; relogin required"
@@ -43,6 +48,8 @@ set_default_shell_zsh() {
 
 install_oh_my_zsh() {
   if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+    # non-interactive install: leave the shell switch to set_default_shell_zsh
+    # and don't let it overwrite the .zshrc we configure afterward
     RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c \
       "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
   fi
@@ -61,48 +68,36 @@ configure_zsh_plugins() {
     cp "$HOME/.oh-my-zsh/templates/zshrc.zsh-template" "$zshrc"
   fi
 
-  python3 - "$zshrc" <<'PY'
-from pathlib import Path
-import re
-import sys
+  # make sure a custom or stripped-down .zshrc still ends up with the env var,
+  # theme, and plugins we need, without duplicating anything already there
+  grep -q '^export ZSH=' "$zshrc" || sed -i '1i export ZSH="$HOME/.oh-my-zsh"' "$zshrc"
 
-path = Path(sys.argv[1])
-text = path.read_text()
+  if grep -q '^ZSH_THEME=' "$zshrc"; then
+    sed -i 's/^ZSH_THEME=.*/ZSH_THEME="robbyrussell"/' "$zshrc"
+  else
+    sed -i '/^export ZSH=/a ZSH_THEME="robbyrussell"' "$zshrc"
+  fi
 
-if 'export ZSH="$HOME/.oh-my-zsh"' not in text:
-    text = 'export ZSH="$HOME/.oh-my-zsh"\n' + text
+  # drop any existing plugins list (however it's formatted) so ours replaces it cleanly
+  grep -q '^plugins=(' "$zshrc" && sed -i '/^plugins=(/,/)/d' "$zshrc"
+  cat >> "$zshrc" <<'EOF'
 
-if not re.search(r'^ZSH_THEME=', text, flags=re.M):
-    text = re.sub(r'^export ZSH=.*$', 'export ZSH="$HOME/.oh-my-zsh"\nZSH_THEME="robbyrussell"', text, count=1, flags=re.M)
-else:
-    text = re.sub(r'^ZSH_THEME=.*$', 'ZSH_THEME="robbyrussell"', text, flags=re.M)
-
-plugins_block = """plugins=(
+plugins=(
   git
   z
   zsh-autosuggestions
   zsh-syntax-highlighting
-)"""
+)
+EOF
 
-if re.search(r'^plugins=\(', text, flags=re.M):
-    text = re.sub(r'^plugins=\([\s\S]*?^\)', plugins_block, text, count=1, flags=re.M)
-else:
-    if not text.endswith('\n'):
-        text += '\n'
-    text += '\n' + plugins_block + '\n'
-
-if 'source $ZSH/oh-my-zsh.sh' not in text:
-    text += '\nsource $ZSH/oh-my-zsh.sh\n'
-
-path.write_text(text)
-PY
-
+  append_if_missing 'source $ZSH/oh-my-zsh.sh' "$zshrc"
   append_if_missing '. "$HOME/.local/bin/env"' "$zshrc"
 }
 
 fetch_apt_keyring() {
   local key_url="$1" keyring_path="$2"
   sudo install -d -m 0755 "$(dirname "$keyring_path")"
+  # skip re-fetching a key that's already trusted locally
   if [[ ! -f "$keyring_path" ]]; then
     curl -fsSL "$key_url" | sudo gpg --dearmor -o "$keyring_path"
   fi
@@ -133,6 +128,7 @@ setup_vscode_repo() {
 setup_docker_repo() {
   fetch_apt_keyring https://download.docker.com/linux/ubuntu/gpg /etc/apt/keyrings/docker.gpg
 
+  # target whatever Ubuntu release this machine actually runs, not a hardcoded one
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" \
     | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 }
@@ -205,6 +201,7 @@ install_obsidian() {
 
 configure_docker_group() {
   getent group docker >/dev/null || sudo groupadd docker
+  # only add the user (and flag the relogin requirement) if not already a member
   if ! id -nG "$USER" | grep -qw docker; then
     sudo usermod -aG docker "$USER"
     log "Added $USER to docker group; relogin required"
