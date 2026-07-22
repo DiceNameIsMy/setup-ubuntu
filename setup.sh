@@ -128,6 +128,20 @@ setup_vscode_repo() {
     | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
 }
 
+setup_github_cli_repo() {
+  local keyring_path=/etc/apt/keyrings/githubcli-archive-keyring.gpg
+  sudo install -d -m 0755 /etc/apt/keyrings
+  # the upstream key is already in binary keyring format, so unlike the other
+  # repos here it's written straight through rather than piped through gpg --dearmor
+  if [[ ! -f "$keyring_path" ]]; then
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee "$keyring_path" > /dev/null
+    sudo chmod go+r "$keyring_path"
+  fi
+
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=$keyring_path] https://cli.github.com/packages stable main" \
+    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+}
+
 setup_docker_repo() {
   fetch_apt_keyring https://download.docker.com/linux/ubuntu/gpg /etc/apt/keyrings/docker.gpg
 
@@ -161,7 +175,7 @@ configure_nvidia_docker() {
 
 setup_git() {
   local configure_git=n
-  read -r -p "Would you like to configure git with an SSH key? [y/n]:" configure_git
+  read -r -p "Would you like to configure git user.name/user.email? [y/n]:" configure_git
   if [[ "$configure_git" != "y" ]]; then
     return
   fi
@@ -169,9 +183,6 @@ setup_git() {
   local name="" email=""
   read -r -p "Your name: " name
   read -r -p "Your email: " email
-
-  ssh-keygen -t ed25519 -C "$email"
-  log "An ssh key has been generated."
 
   git config --global user.name "$name"
   git config --global user.email "$email"
@@ -196,7 +207,7 @@ grant_data_ownership() {
 
 install_apt_packages() {
   sudo apt install -y \
-    brave-browser code \
+    brave-browser code gh \
     wine64 wine32 winbind wine64-preloader \
     docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
     ddcutil qbittorrent
@@ -248,6 +259,7 @@ print_followups() {
   echo "  - Re-login to apply docker group membership"
   echo "  - Log out and back in so newly installed GNOME extensions activate"
   echo "  - Next: install gaze (curl -fsSL https://gaze.gundulabs.com/install.sh | sh)"
+  echo "  - Run: gh auth login (can generate and upload an SSH key for you)"
 }
 
 main() {
@@ -269,6 +281,7 @@ main() {
   log "Repositories"
   setup_brave_repo
   setup_vscode_repo
+  setup_github_cli_repo
   setup_docker_repo
   setup_nvidia_container_toolkit_repo
 
