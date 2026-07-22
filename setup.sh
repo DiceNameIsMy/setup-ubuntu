@@ -87,6 +87,7 @@ main() {
 
   _log "Base packages"
   install_base_packages
+  configure_npm_global_prefix
 
   _append_if_missing 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.bashrc"
 

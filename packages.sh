@@ -21,6 +21,12 @@ grant_data_ownership() {
   fi
 }
 
+configure_npm_global_prefix() {
+  # apt's npm defaults its global prefix to root-owned /usr, so `npm i -g`
+  # needs sudo -- point it at ~/.local instead, which is already on PATH
+  npm config set prefix "$HOME/.local"
+}
+
 install_apt_packages() {
   sudo apt install -y \
     brave-browser code gh \

@@ -68,5 +68,8 @@ plugins=(
 source $ZSH/oh-my-zsh.sh
 EOF
 
-  _append_if_missing '. "$HOME/.local/bin/env"' "$zshrc"
+  # explicit, so PATH is correct even if the uv env file below doesn't exist
+  # (e.g. uv installed some other way) -- mirrors the .bashrc PATH line in setup.sh
+  _append_if_missing 'export PATH="$HOME/.local/bin:$PATH"' "$zshrc"
+  _append_if_missing '[[ -f "$HOME/.local/bin/env" ]] && . "$HOME/.local/bin/env"' "$zshrc"
 }
