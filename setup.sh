@@ -136,6 +136,29 @@ setup_docker_repo() {
     | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 }
 
+have_nvidia_gpu() {
+  lspci -nn 2>/dev/null | grep -qi nvidia
+}
+
+setup_nvidia_container_toolkit_repo() {
+  have_nvidia_gpu || return
+
+  fetch_apt_keyring https://nvidia.github.io/libnvidia-container/gpgkey \
+    /etc/apt/keyrings/nvidia-container-toolkit.gpg
+
+  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+    | sed 's#deb https://#deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit.gpg] https://#' \
+    | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null
+}
+
+configure_nvidia_docker() {
+  have_nvidia_gpu || return
+
+  sudo apt install -y nvidia-container-toolkit
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+}
+
 setup_git() {
   local configure_git=n
   read -r -p "Would you like to configure git with an SSH key? [y/n]:" configure_git
@@ -181,6 +204,14 @@ install_apt_packages() {
   npm i -g @immich/cli
 }
 
+init_wine_prefix() {
+  have wine || return
+  [[ -d "$HOME/.wine" ]] && return
+
+  # skip the Mono/Gecko installer popups; nothing here needs .NET or embedded HTML
+  WINEDLLOVERRIDES="mscoree=;mshtml=" wineboot --init >/dev/null 2>&1
+}
+
 install_uv() {
   have uv || curl -LsSf https://astral.sh/uv/install.sh | sh
 }
@@ -215,9 +246,7 @@ print_followups() {
   echo "Manual follow-ups:"
   echo "  - Restart session or run: exec zsh"
   echo "  - Re-login to apply docker group membership"
-  echo "  - Run \`winecfg\` once if you want to initialize Wine interactively"
   echo "  - Log out and back in so newly installed GNOME extensions activate"
-  echo "  - See this page to configure docker+nvidia: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html"
   echo "  - TODO: Biopass"
 }
 
@@ -241,12 +270,14 @@ main() {
   setup_brave_repo
   setup_vscode_repo
   setup_docker_repo
+  setup_nvidia_container_toolkit_repo
 
   log "APT refresh"
   sudo apt update
 
   log "Install packages"
   install_apt_packages
+  init_wine_prefix
 
   log "uv"
   install_uv
@@ -262,6 +293,9 @@ main() {
 
   log "Docker group"
   configure_docker_group
+
+  log "NVIDIA container toolkit"
+  configure_nvidia_docker
 
   log "Desktop"
   configure_desktop

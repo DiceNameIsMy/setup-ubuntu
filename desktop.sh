@@ -88,7 +88,14 @@ configure_keyboard_layout() {
   gsettings set org.gnome.desktop.input-sources xkb-options "['grp_led:scroll']"
 }
 
+configure_appearance() {
+  gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+  gsettings set org.gnome.desktop.interface gtk-theme 'Yaru-olive-dark'
+  gsettings set org.gnome.desktop.interface icon-theme 'Yaru-olive-dark'
+}
+
 configure_desktop() {
   configure_gnome_extensions
   configure_keyboard_layout
+  configure_appearance
 }
