@@ -108,8 +108,26 @@ configure_appearance() {
   gsettings set org.gnome.desktop.interface icon-theme 'Yaru-olive-dark'
 }
 
+configure_favorite_apps() {
+  gsettings set org.gnome.shell favorite-apps \
+    "['org.gnome.Nautilus.desktop', 'brave-browser.desktop', 'code.desktop', 'thunderbird_thunderbird.desktop']"
+}
+
+configure_terminal() {
+  # Ubuntu 24.04+ ships Ptyxis, not gnome-terminal. Its per-profile settings
+  # (like palette) live under a UUID generated at first run, so the UUID
+  # can't be hardcoded and has to be looked up before setting the path.
+  gsettings set org.gnome.Ptyxis interface-style 'dark'
+
+  local uuid
+  uuid="$(gsettings get org.gnome.Ptyxis default-profile-uuid | tr -d "'")"
+  gsettings set "org.gnome.Ptyxis.Profile:/org/gnome/Ptyxis/Profiles/${uuid}/" palette 'linux'
+}
+
 configure_desktop() {
   configure_gnome_extensions
   configure_keyboard_layout
   configure_appearance
+  configure_favorite_apps
+  configure_terminal
 }
