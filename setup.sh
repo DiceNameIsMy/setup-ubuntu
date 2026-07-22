@@ -134,6 +134,9 @@ main() {
   _log "Desktop"
   configure_desktop
 
+  _log "Upgrade and clean up packages"
+  upgrade_apt_packages
+
   setup_git
 
   _log "Done"

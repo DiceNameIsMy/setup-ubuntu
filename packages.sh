@@ -4,6 +4,11 @@
 # Sourced from setup.sh; relies on _log()/_have()/_have_nvidia_gpu() from there.
 set -euo pipefail
 
+upgrade_apt_packages() {
+  sudo apt upgrade -y
+  sudo apt autoremove -y
+}
+
 install_base_packages() {
   sudo dpkg --add-architecture i386
   sudo apt update
