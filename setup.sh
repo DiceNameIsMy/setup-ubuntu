@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/desktop.sh"
+
 log() {
   printf '\n[%s] %s\n' "$(date +'%H:%M:%S')" "$*"
 }
@@ -213,9 +216,9 @@ print_followups() {
   echo "  - Restart session or run: exec zsh"
   echo "  - Re-login to apply docker group membership"
   echo "  - Run \`winecfg\` once if you want to initialize Wine interactively"
-  echo "  - Install gSnap: https://extensions.gnome.org/extension/4442/gsnap/"
+  echo "  - Log out and back in so newly installed GNOME extensions activate"
   echo "  - See this page to configure docker+nvidia: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html"
-  echo "  - TODO: gSnap, DashToDock, Biopass"
+  echo "  - TODO: Biopass"
 }
 
 main() {
@@ -259,6 +262,9 @@ main() {
 
   log "Docker group"
   configure_docker_group
+
+  log "Desktop"
+  configure_desktop
 
   setup_git
 
