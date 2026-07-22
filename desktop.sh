@@ -51,6 +51,21 @@ use-modifier=true
 EOF
 }
 
+configure_brightness_ddcutil() {
+  # sleep-multiplier is tuned way above the 1.0 default because these
+  # monitors' DDC/CI is unreliable at normal polling speed
+  dconf load /org/gnome/shell/extensions/display-brightness-ddcutil/ <<'EOF'
+[/]
+ddcutil-sleep-multiplier=56.0
+hide-system-indicator=false
+only-all-slider=true
+show-all-slider=true
+show-osd=true
+show-value-label=true
+step-change-keyboard=10.0
+EOF
+}
+
 configure_gnome_extensions() {
   local uuid
   for uuid in \
@@ -64,6 +79,7 @@ configure_gnome_extensions() {
 
   configure_dash_to_dock
   configure_gsnap
+  configure_brightness_ddcutil
 }
 
 configure_keyboard_layout() {
