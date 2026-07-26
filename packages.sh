@@ -60,6 +60,12 @@ install_claude_code() {
   fi
 }
 
+install_claude_browser_skill() {
+  mkdir -p "$HOME/.claude/skills/browser-use"
+  cp "$script_dir/claude/browser-use/SKILL.md" "$script_dir/claude/browser-use/setup.sh" \
+    "$HOME/.claude/skills/browser-use/"
+}
+
 install_tailscale() {
   if ! _have tailscale; then
     curl -fsSL https://tailscale.com/install.sh | sh
