@@ -12,10 +12,56 @@ NODE_VERSION=20
 PROJECT_DIR="${PROJECT_DIR:-$PWD}"
 PROFILE_REL="${BROWSER_PROFILE_REL:-.claude/browser-profile}"
 
+# nvm refuses to activate ANY Node version -- including its own auto-use
+# triggered just by sourcing nvm.sh -- while ~/.npmrc has a `prefix` or
+# `globalconfig` setting. This repo's own configure_npm_global_prefix (in
+# packages.sh) sets exactly that (npm config set prefix "$HOME/.local", so
+# `npm i -g` doesn't need sudo), so every machine provisioned by this repo
+# hits it. Hide the file for the nvm/npm calls below -- which would otherwise
+# also honor that prefix and install @playwright/mcp into ~/.local instead of
+# the nvm Node tree -- rather than deleting the setting, which is there
+# deliberately for the system npm's global installs (e.g. @immich/cli).
+# Self-heals if a previous run crashed mid-hide.
+NPMRC="$HOME/.npmrc"
+NPMRC_HIDDEN_PATH="$HOME/.npmrc.browser-use-skill-bak"
+if [ -f "$NPMRC_HIDDEN_PATH" ] && [ ! -f "$NPMRC" ]; then
+  mv "$NPMRC_HIDDEN_PATH" "$NPMRC"
+fi
+NPMRC_HIDDEN=0
+if [ -f "$NPMRC" ] && grep -qE '^(prefix|globalconfig) *=' "$NPMRC"; then
+  mv "$NPMRC" "$NPMRC_HIDDEN_PATH"
+  NPMRC_HIDDEN=1
+fi
+_restore_npmrc() {
+  if [ "$NPMRC_HIDDEN" = 1 ] && [ -f "$NPMRC_HIDDEN_PATH" ]; then
+    mv "$NPMRC_HIDDEN_PATH" "$NPMRC"
+  fi
+}
+trap _restore_npmrc EXIT
+
 # 1. nvm + Node 20 (system Node is frequently < 20; @playwright/mcp refuses to start below it)
 if [ ! -s "$HOME/.nvm/nvm.sh" ]; then
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 fi
+
+# The nvm installer appends a plain `\. "$NVM_DIR/nvm.sh"` (no args) to the
+# shell rc file(s), which defaults to auto-running `nvm use default` on every
+# new shell. Once a default alias exists (below), that trips the same
+# ~/.npmrc prefix/globalconfig check as above -- but on *every terminal
+# opened from now on*, not just this script -- because sourcing happens
+# before this script's own hide/restore window exists. `--no-use` skips the
+# auto-switch; costless here since interactive shells use the system
+# node/npm and this skill only ever invokes nvm's node by absolute path.
+_ensure_nvm_no_use() {
+  local rc="$1"
+  [ -f "$rc" ] || return 0
+  grep -Fq '$NVM_DIR/nvm.sh" --no-use' "$rc" && return 0
+  grep -Fq '$NVM_DIR/nvm.sh"  # This loads nvm' "$rc" || return 0
+  sed -i 's|\$NVM_DIR/nvm\.sh"  # This loads nvm|$NVM_DIR/nvm.sh" --no-use  # This loads nvm|' "$rc"
+}
+_ensure_nvm_no_use "$HOME/.bashrc"
+_ensure_nvm_no_use "$HOME/.zshrc"
+
 export NVM_DIR="$HOME/.nvm"
 # shellcheck source=/dev/null
 . "$NVM_DIR/nvm.sh"
@@ -42,6 +88,11 @@ echo "playwright-mcp: $NODE_DIR/playwright-mcp"
 # 3. Chromium binary (the MCP server defaults to the "chrome-for-testing" channel, a
 #    separate download from Playwright's own bundled Chromium)
 "$NODE_DIR/node" "$NODE_DIR/playwright-mcp" install-browser chrome-for-testing
+
+# npmrc no longer needed hidden -- nothing past this point touches npm.
+_restore_npmrc
+trap - EXIT
+NPMRC_HIDDEN=0
 
 # 4. Per-project profile dir for THIS project, created now so it exists even before
 #    the server's first launch here.
