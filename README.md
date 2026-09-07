@@ -5,6 +5,10 @@ apt repos (Brave, VS Code, Docker, NVIDIA container toolkit, GitHub CLI),
 GNOME desktop config, and dev tooling (uv, Claude Code, Tailscale, Obsidian,
 whisrs).
 
+Also clones and installs a Claude Code statusline
+([DiceNameIsMy/statusline](https://github.com/DiceNameIsMy/statusline)) showing
+token usage, model, effort level, and git branch.
+
 ## Usage
 
 ```sh

@@ -119,6 +119,7 @@ main() {
   _log "Claude Code"
   install_claude_code
   install_claude_browser_skill
+  install_claude_statusline
 
   _log "Tailscale"
   install_tailscale
@@ -149,8 +150,12 @@ main() {
 
 if [[ "${1:-}" == "list" ]]; then
   _list_tasks
-elif [[ "${1:-}" ]] && declare -F "$1" >/dev/null; then
+elif [[ -z "${1:-}" ]]; then
+  main
+elif declare -F "$1" >/dev/null; then
   "$@"
 else
-  main "$@"
+  echo "Unknown task: $1" >&2
+  echo "Run '$0 list' to see available tasks." >&2
+  exit 1
 fi

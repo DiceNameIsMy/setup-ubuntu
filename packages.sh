@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Package installation beyond the OS base image: apt packages, snaps, wine,
 # uv, Claude Code, Tailscale, Obsidian, whisrs, and docker group/runtime wiring.
-# Sourced from setup.sh; relies on _log()/_have()/_have_nvidia_gpu() from there.
+# Sourced from setup.sh; relies on _log()/_have()/_have_nvidia_gpu()/_clone_or_update() from there.
 set -euo pipefail
 
 upgrade_apt_packages() {
@@ -64,6 +64,22 @@ install_claude_browser_skill() {
   mkdir -p "$HOME/.claude/skills/browser-use"
   cp "$script_dir/claude/browser-use/SKILL.md" "$script_dir/claude/browser-use/setup.sh" \
     "$HOME/.claude/skills/browser-use/"
+}
+
+install_claude_statusline() {
+  local src="$HOME/.claude/statusline-src"
+  _clone_or_update https://github.com/DiceNameIsMy/statusline "$src"
+  cp "$src/statusline.py" "$HOME/.claude/statusline.py"
+
+  local settings="$HOME/.claude/settings.json"
+  [[ -f "$settings" ]] || echo '{}' > "$settings"
+
+  local tmp
+  tmp="$(mktemp)"
+  jq --arg cmd "python3 $HOME/.claude/statusline.py" \
+    '.statusLine = {"type": "command", "command": $cmd}' \
+    "$settings" > "$tmp"
+  mv "$tmp" "$settings"
 }
 
 install_tailscale() {
