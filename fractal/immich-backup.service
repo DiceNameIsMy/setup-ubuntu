@@ -1,0 +1,12 @@
+[Unit]
+Description=Immich backup (pull library + DB dump from rpi4)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__IMMICH_WORKDIR__
+ExecStart=__IMMICH_WORKDIR__/backup.sh
+# Low priority so a long transfer doesn't compete with interactive use.
+Nice=19
+IOSchedulingClass=idle

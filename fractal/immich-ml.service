@@ -1,0 +1,21 @@
+[Unit]
+Description=Immich Docker Compose stack for an ML server
+# ExecStopPost resets ALL tailscale serve config on this node - fine as long as
+# this is the only thing on the host using `tailscale serve`.
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=__IMMICH_WORKDIR__
+ExecStart=/usr/bin/docker compose up -d
+ExecStartPost=/usr/bin/tailscale serve --bg 3003
+ExecStop=/usr/bin/docker compose down
+ExecStopPost=/usr/bin/tailscale serve reset
+TimeoutStartSec=300
+User=__IMMICH_USER__
+
+[Install]
+WantedBy=multi-user.target

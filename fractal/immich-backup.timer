@@ -1,0 +1,13 @@
+[Unit]
+Description=Monthly Immich backup
+
+[Timer]
+OnCalendar=monthly
+# If fractal was off when this should have fired, run it once shortly
+# after the next boot instead of silently skipping the month.
+Persistent=true
+# Spread out the IO-heavy start instead of always landing exactly at boot.
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target
