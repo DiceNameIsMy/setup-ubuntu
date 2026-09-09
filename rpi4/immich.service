@@ -3,6 +3,10 @@ Description=Immich Docker Compose stack (server + db + redis; ML offloaded to fr
 # ExecStopPost resets ALL tailscale serve config on this node - fine as long as
 # this is the only thing on the host using `tailscale serve`.
 Requires=docker.service
+# Won't start until the SSD (DB) and HDD (library, shared with other
+# stuff) are mounted at these paths; see install-service.sh, which pins
+# them there by UUID.
+RequiresMountsFor=/mnt/ssd /mnt/Axagon
 After=docker.service network-online.target
 Wants=network-online.target
 

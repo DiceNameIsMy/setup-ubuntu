@@ -3,6 +3,31 @@ set -e
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+usage() {
+  cat >&2 <<EOF
+Usage: $0 --ssd-uuid=<UUID> --hdd-uuid=<UUID>
+
+  --ssd-uuid  UUID of the drive for Immich's Postgres DB (lsblk -no UUID /dev/sdX)
+  --hdd-uuid  UUID of the drive for Immich's photo/video library
+
+Passed through to rpi4/install-service.sh, which mounts them by UUID at
+stable paths instead of relying on /media/nur/<label> automount paths.
+EOF
+  exit 1
+}
+
+ssd_uuid=""
+hdd_uuid=""
+for arg in "$@"; do
+  case "$arg" in
+    --ssd-uuid=*) ssd_uuid="${arg#*=}" ;;
+    --hdd-uuid=*) hdd_uuid="${arg#*=}" ;;
+    -h|--help) usage ;;
+    *) usage ;;
+  esac
+done
+[[ -n "$ssd_uuid" && -n "$hdd_uuid" ]] || usage
+
 _have() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -28,7 +53,7 @@ fi
 sudo tailscale set --operator="$USER"
 
 # Immich (server + redis + db; ML runs remotely on fractal, see rpi4/.env)
-sudo "$script_dir/rpi4/install-service.sh" "$USER"
+sudo "$script_dir/rpi4/install-service.sh" "--ssd-uuid=$ssd_uuid" "--hdd-uuid=$hdd_uuid" "$USER"
 
 # Add key and repo for syncthing
 sudo mkdir -p /etc/apt/keyrings
@@ -42,6 +67,12 @@ https://apt.syncthing.net/ syncthing stable-v2" | \
 # Install
 sudo apt update
 sudo apt install -y syncthing
+
+# Obsidian's synced folder lives on the HDD (mounted at /mnt/Axagon by
+# install-service.sh above); don't let syncthing start until it's there.
+sudo mkdir -p "/etc/systemd/system/syncthing@$(whoami).service.d"
+sudo cp "$script_dir/rpi4/syncthing-mount.conf" "/etc/systemd/system/syncthing@$(whoami).service.d/mount.conf"
+sudo systemctl daemon-reload
 
 sudo systemctl enable syncthing@$(whoami).service
 sudo systemctl start syncthing@$(whoami).service
