@@ -17,8 +17,10 @@ services:
     #   file: hwaccel.transcoding.yml
     #   service: cpu # set to one of [nvenc, quicksync, rkmpp, vaapi, vaapi-wsl] for accelerated transcoding
     volumes:
-      # Do not edit the next line. If you want to change the media storage location on your system, edit the value of UPLOAD_LOCATION in the .env file
-      - ${UPLOAD_LOCATION}:/data
+      # Storage location is set by UPLOAD_LOCATION in the .env file; it is
+      # bound via the named volume at the bottom of this file rather than a
+      # plain bind mount, so a missing HDD is a hard error (see there).
+      - immich-library:/data
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
@@ -27,7 +29,7 @@ services:
     depends_on:
       - redis
       - database
-    restart: always
+    restart: on-failure
     healthcheck:
       disable: false
 
@@ -36,7 +38,7 @@ services:
     image: docker.io/valkey/valkey:9@sha256:4963247afc4cd33c7d3b2d2816b9f7f8eeebab148d29056c2ca4d7cbc966f2d9
     healthcheck:
       test: redis-cli ping || exit 1
-    restart: always
+    restart: on-failure
 
   database:
     container_name: immich_postgres
@@ -49,9 +51,38 @@ services:
       # Uncomment the DB_STORAGE_TYPE: 'HDD' var if your database isn't stored on SSDs
       # DB_STORAGE_TYPE: 'HDD'
     volumes:
-      # Do not edit the next line. If you want to change the database storage location on your system, edit the value of DB_DATA_LOCATION in the .env file
-      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+      # Storage location is set by DB_DATA_LOCATION in the .env file; bound
+      # via the named volume at the bottom of this file, same as the library.
+      - immich-db:/var/lib/postgresql/data
     shm_size: 128mb
-    restart: always
+    restart: on-failure
     healthcheck:
       disable: false
+
+# These are bind mounts expressed as named volumes on purpose. A plain
+# `- ${UPLOAD_LOCATION}:/data` bind makes Docker *create* the path if it's
+# missing, so with the HDD unmounted the stack happily starts and writes a
+# second, empty library onto the Pi's SD card. The local driver with
+# o=bind refuses to start the container when `device` doesn't exist, which
+# is what we want: no mount, no start.
+#
+# Combined with `restart: on-failure` (not `always`), this keeps systemd in
+# charge of startup. With `always`, dockerd resurrects the stack at boot
+# regardless of immich.service, defeating its RequiresMountsFor= guard.
+#
+# Note: these volumes cache their device path at creation time. After
+# changing UPLOAD_LOCATION/DB_DATA_LOCATION in .env, recreate them:
+#   docker compose down && docker volume rm immich_immich-library immich_immich-db
+volumes:
+  immich-library:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${UPLOAD_LOCATION}
+  immich-db:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DB_DATA_LOCATION}
