@@ -1,16 +1,36 @@
 #!/bin/bash
 # Idempotent setup for the Playwright MCP browser-automation server.
-# Safe to re-run. Registers the server ONCE at user scope (available in every
-# project, no per-project restart needed), but points it at a profile dir
-# given as a RELATIVE path. The playwright-mcp subprocess inherits its cwd
-# from whichever project directory the Claude Code session was launched in,
-# so the relative path resolves to a different, isolated profile directory
-# per project automatically — one global registration, per-project sessions.
+# Shared by Claude Code and Codex. Relative profiles resolve against the MCP
+# subprocess's working directory, with separate defaults for each client.
 set -euo pipefail
 
 NODE_VERSION=20
 PROJECT_DIR="${PROJECT_DIR:-$PWD}"
-PROFILE_REL="${BROWSER_PROFILE_REL:-.claude/browser-profile}"
+BROWSER_CLIENT="${BROWSER_CLIENT:-auto}"
+CLIENTS=()
+case "$BROWSER_CLIENT" in
+  auto)
+    for client in claude codex; do
+      if command -v "$client" >/dev/null 2>&1; then CLIENTS+=("$client"); fi
+    done
+    ;;
+  claude|codex) CLIENTS=("$BROWSER_CLIENT") ;;
+  both) CLIENTS=(claude codex) ;;
+  *) echo "BROWSER_CLIENT must be auto, claude, codex, or both" >&2; exit 1 ;;
+esac
+if [ "${#CLIENTS[@]}" -eq 0 ]; then
+  echo "Install Claude Code or Codex before running browser setup." >&2
+  exit 1
+fi
+for client in "${CLIENTS[@]}"; do
+  command -v "$client" >/dev/null 2>&1 || {
+    echo "Required client is not installed: $client" >&2; exit 1;
+  }
+done
+if [[ "${BROWSER_PROFILE_REL:-}" = /* ]]; then
+  echo "BROWSER_PROFILE_REL must be relative to the project directory." >&2
+  exit 1
+fi
 
 # nvm refuses to activate ANY Node version -- including its own auto-use
 # triggered just by sourcing nvm.sh -- while ~/.npmrc has a `prefix` or
@@ -94,28 +114,31 @@ _restore_npmrc
 trap - EXIT
 NPMRC_HIDDEN=0
 
-# 4. Per-project profile dir for THIS project, created now so it exists even before
-#    the server's first launch here.
-mkdir -p "$PROJECT_DIR/$PROFILE_REL"
-echo "Profile dir (this project): $PROJECT_DIR/$PROFILE_REL"
+# 4. Register at user scope for each installed (or explicitly selected) client.
+# Keep Claude's existing profile; Codex gets its own to avoid browser locks when
+# both clients are running in the same project.
+for client in "${CLIENTS[@]}"; do
+  PROFILE_REL="${BROWSER_PROFILE_REL:-.$client/browser-profile}"
+  mkdir -p "$PROJECT_DIR/$PROFILE_REL"
+  echo "$client profile (this project): $PROJECT_DIR/$PROFILE_REL"
 
-# 5. Register the server once, at user scope, with a RELATIVE --user-data-dir.
-#    Re-registering is harmless (claude mcp add overwrites); skip if already present
-#    and correctly pointed at a relative path to avoid needless churn.
-CURRENT_ARGS="$(claude mcp get playwright 2>/dev/null | grep '^  Args:' || true)"
-if echo "$CURRENT_ARGS" | grep -q -- "--user-data-dir=$PROFILE_REL\$"; then
-  echo "playwright already registered at user scope with relative profile dir; skipping re-add."
-else
-  claude mcp remove playwright -s user >/dev/null 2>&1 || true
-  claude mcp add playwright -s user -- "$NODE_BIN" "$NODE_DIR/playwright-mcp" \
-    --browser=chromium "--user-data-dir=$PROFILE_REL"
-  echo "Registered playwright MCP server at user scope (relative profile: $PROFILE_REL)."
-fi
+  if [ "$client" = claude ]; then
+    CURRENT="$(claude mcp get playwright 2>/dev/null || true)"
+    if ! { grep -Fqx "  Command: $NODE_BIN" <<< "$CURRENT" &&
+           grep -Fqx "  Args: $NODE_DIR/playwright-mcp --browser=chromium --user-data-dir=$PROFILE_REL" <<< "$CURRENT" &&
+           grep -q 'Scope: User' <<< "$CURRENT"; }; then
+      claude mcp remove playwright -s user >/dev/null 2>&1 || true
+      claude mcp add playwright -s user -- "$NODE_BIN" "$NODE_DIR/playwright-mcp" \
+        --browser=chromium "--user-data-dir=$PROFILE_REL"
+    fi
+  else
+    # Codex add replaces the named entry, retaining unrelated config settings.
+    codex mcp add playwright -- "$NODE_BIN" "$NODE_DIR/playwright-mcp" \
+      --browser=chromium "--user-data-dir=$PROFILE_REL"
+  fi
+  echo "Registered playwright for $client. Verify with: $client mcp list"
+done
 
 echo
-echo "Done. If this is the first time the playwright server was registered in this"
-echo "Claude Code installation, restart Claude Code (or reconnect MCP servers) once"
-echo "to load the tools. After that, running this skill in any other project needs"
-echo "no further setup or restart — each project gets its own isolated browser profile"
-echo "at <project>/$PROFILE_REL automatically."
-echo "Verify with: claude mcp list"
+echo "Done. Restart each configured client (or reconnect MCP servers) to load changes."
+echo "Profiles resolve relative to the MCP server's working directory at launch."

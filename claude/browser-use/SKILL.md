@@ -4,7 +4,7 @@ description: Set up and drive a real browser (Playwright MCP) to perform a given
 ---
 
 Drives a real, headed Chromium instance via the **Playwright MCP server**
-(`@playwright/mcp`), exposed to Claude Code as the `mcp__playwright__*`
+(`@playwright/mcp`), exposed to Claude Code and Codex as Playwright MCP
 tools (`browser_navigate`, `browser_snapshot`, `browser_click`,
 `browser_type`, `browser_find`, `browser_tabs`, `browser_evaluate`,
 `browser_take_screenshot`, …). There is no separate driver script — once
@@ -18,71 +18,102 @@ document covers the reusable part: getting a browser you can drive at all,
 and the patterns that make driving it reliable once you have one. It does
 not encode any particular task.
 
-**The server is registered once, globally, at user scope** — available in
-every project without per-project config or restarts. **Browser context is
-still per-project**, though: the server is launched with a *relative*
-`--user-data-dir` (`.claude/browser-profile`), and the playwright-mcp
-subprocess inherits its cwd from whichever project directory the Claude Code
-session was started in. So one global registration still resolves to an
-isolated, persistent profile directory per project — logins/cookies in one
-project don't leak into or get wiped by another, and there's no restart
-needed when moving to a new project.
+**The server is registered globally for each client**, with separate persistent
+profiles: `.claude/browser-profile` for Claude Code and `.codex/browser-profile`
+for Codex. Relative paths resolve against the MCP subprocess's working directory.
+Launch the client from the intended project root. Separate profiles let both
+clients run concurrently; logins are independent.
 
 ## Prerequisites
 
-None at the OS package level — everything installs into the user's home
-directory (nvm, Node, the user-scoped MCP registration) and the current
-project directory (browser profile only). No `sudo` needed. Verified inside
-a WSL2/WSLg container.
+Install the Claude Code and/or Codex CLI and make it available on `PATH`.
+The setup installs nvm, Node and the browser into your home directory without
+sudo. A working graphical desktop and Chromium's system libraries are required
+for the headed browser.
+
+## Browser visibility (user preference)
+
+**Default to a headed browser visible on the user's desktop. Use headless mode
+only when the user explicitly requests it.** This applies to both Claude Code
+and Codex, including requests that simply say "open the browser".
+
+Verify the actual browser after connecting or launching. Successful navigation
+or a snapshot does not prove that a visible window opened. Checking
+`navigator.userAgent` with `browser_evaluate` can detect `HeadlessChrome`;
+its absence alone does not prove desktop visibility. Check the actual launch
+options and desktop display when needed. Do not infer the connected server's
+mode from the local registration: the tool may use a different server.
+
+If the connected browser is headless, launch or reconnect to a local headed
+Playwright instance on the user's desktop, with `headless: false` when using
+the Playwright API (and no `--headless` flag for the MCP server). Keep its
+connection alive so the window remains open. If a visible browser cannot be
+launched, explain the blocker instead of silently falling back to headless
+or claiming that a desktop window opened.
+
+If the persistent profile is locked, use a separate temporary profile for a
+simple browser-opening request and disclose that existing logins are unavailable
+there. For tasks requiring existing logins, resolve the profile conflict before
+continuing. Do not terminate unrelated browser sessions or delete live locks.
 
 ## Setup
 
-Run from the project root that should get its own browser profile:
+Run the setup script alongside this skill from the intended project root.
+The repository installs identical copies at these locations:
 
 ```bash
-cd /path/to/your/project
+# Either copy registers every installed client (Claude Code and/or Codex).
 bash ~/.claude/skills/browser-use/setup.sh
+# Or, from Codex's user skill directory:
+bash ~/.agents/skills/browser-use/setup.sh
 ```
 
-Idempotent — safe to re-run any time the MCP connection is broken. In order:
+Safe to re-run. The script:
 
-1. Installs `nvm` (if missing) and Node 20 via it. **The system `node` is
-   commonly older than 20, and `@playwright/mcp` hard-refuses to start
-   below Node 20** — the #1 cause of a dead MCP connection.
-2. Installs `@playwright/mcp` globally under that Node 20.
-3. Runs `playwright-mcp install-browser chrome-for-testing` — downloads the
-   actual browser binary. The MCP server does **not** use Playwright's
-   normal bundled Chromium; it launches under a `chrome-for-testing`
-   channel that needs its own explicit install.
-4. Creates `<project>/.claude/browser-profile/` (persistent — logins survive
-   across sessions) unless `BROWSER_PROFILE_REL` is set to a different
-   relative path.
-5. Registers the `playwright` MCP server at **user scope** (`claude mcp add
-   ... -s user`) if not already registered with a relative profile path —
-   this touches `~/.claude.json`, not any project's `.mcp.json`. Points
-   `command` directly at the Node 20 binary and the `playwright-mcp` script
-   path — **not** `npx` — with `--user-data-dir=.claude/browser-profile`
-   (relative, so it resolves per-project at launch time).
+1. Installs nvm (if missing) and Node 20, avoiding older system Node versions.
+2. Installs `@playwright/mcp` under that Node and downloads Chrome for Testing.
+3. Creates each client's profile directory in the current project.
+4. Registers `playwright` using `claude mcp add -s user` and/or `codex mcp add`.
+   Claude writes user configuration to `~/.claude.json`; Codex writes to
+   `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`). Both invoke the
+   Node binary and MCP script by absolute path, bypassing `npx`.
 
-Override the target project or the relative profile path:
+Select a client with `BROWSER_CLIENT=claude` or `BROWSER_CLIENT=codex`.
+The default `auto` registers all installed clients; `both` requires both CLIs.
+To override the project used for initial directory creation or the profile:
 
 ```bash
-PROJECT_DIR=/path/to/project BROWSER_PROFILE_REL=.claude/custom-profile \
-  bash ~/.claude/skills/browser-use/setup.sh
+BROWSER_CLIENT=codex PROJECT_DIR=/path/to/project \
+  BROWSER_PROFILE_REL=.codex/custom-profile \
+  bash ~/.agents/skills/browser-use/setup.sh
 ```
 
-The **first time ever** the server is registered, **restart Claude Code**
-(or otherwise force it to reconnect MCP servers) so the `mcp__playwright__*`
-tools load. Verify with:
+`PROJECT_DIR` only controls initial directory creation, not the registered
+server's working directory. `BROWSER_PROFILE_REL` overrides the profile for all
+selected clients; select one client when customizing to avoid sharing a locked
+profile. Keep browser profiles and `.playwright-mcp/` artifacts out of Git.
+
+Restart the configured clients (or reconnect their MCP servers) after changing
+registration. Verify the clients you installed:
 
 ```bash
 claude mcp list
+codex mcp list
+codex mcp get playwright
 ```
 
-Expected: `playwright: ... ✔ Connected` (scope: user config). After that
-first restart, running `setup.sh` in a *different* project needs no further
-restart — the server is already registered; only its per-project profile
-directory gets created fresh.
+Codex's list confirms configuration, not a successful browser launch. In a new
+session, check `/mcp`, then navigate to a page and take a snapshot to verify the
+connection end to end.
+
+## Codex tool discovery
+
+Tool namespaces and parameter names vary between clients and server versions.
+Discover the tools exposed by the `playwright` MCP server and use their actual
+schemas. The `mcp__playwright__*` names below illustrate Claude's naming; Codex
+may expose a different prefix. If tools are deferred, search for Playwright
+browser tools first. Do not assume a tool such as `browser_find` is available;
+read the snapshot instead if it is absent.
 
 ## Run (agent path)
 
@@ -112,10 +143,9 @@ General procedure for any given action:
 6. If the action needs proof (screenshot, confirmation a form went through),
    take it before declaring done.
 
-The browser runs **headed** (no `--headless` flag), so a real window exists
-on the desktop (via WSLg, X11, or the host's own display) — this is
-intentional: it lets a human watch progress, and some sites behave
-differently or degrade under headless detection.
+The default is a **headed** browser on the user's desktop (via WSLg, X11,
+or the host's own display), so the user can watch progress. Verify visibility
+as described above; the connected tool may otherwise launch headless.
 
 Screenshots and per-navigation console/snapshot logs land in
 `.playwright-mcp/` under whichever project's tools are active.
@@ -141,7 +171,7 @@ even interact with it directly while the agent drives it.
   until `playwright-mcp install-browser chrome-for-testing` is run
   explicitly — a plain `npx playwright install chromium` installs a
   different, non-matching build and does not fix this.
-- **A newly-registered MCP server requires a full Claude Code restart**
+- **A newly-registered MCP server requires a client restart**
   to take effect — registering or editing it mid-session does not
   hot-reload the connection or its tool set. This only bites once, the
   first time `playwright` is registered on a machine; since it's
@@ -197,12 +227,12 @@ even interact with it directly while the agent drives it.
   chrome-for-testing` (also handled by `setup.sh` step 3).
 - **`mcp__playwright__*` tools aren't offered/callable at all**: either the
   server was just registered/re-registered for the first time this machine
-  (restart Claude Code once), or a leftover project-local `.mcp.json` from
+  (restart the affected client once), or a leftover project-local `.mcp.json` from
   before this skill switched to user-scope registration is shadowing/
   duplicating it — check for and remove a stray `<project>/.mcp.json`.
 - **Browser profiles seem to be shared across projects instead of isolated**:
   confirm the registered `--user-data-dir` is still a relative path
-  (`claude mcp get playwright`) and check the running subprocess's actual
+  (`claude mcp get playwright` or `codex mcp get playwright`) and check the running subprocess's actual
   cwd with `readlink -f /proc/<pid>/cwd` — see the Gotchas entry above.
 - **A `browser_click`/`browser_type` call fails with `Ref eXXX not found in
   the current page snapshot`**: the page re-rendered since the last
@@ -211,3 +241,10 @@ even interact with it directly while the agent drives it.
   `Execution context was destroyed`**: open a new tab to the same URL
   (`browser_tabs {action:"new", url}`), close the broken one
   (`browser_tabs {action:"close", index}`), continue there.
+
+- **Codex has no browser tools**: check `codex mcp get playwright` and `/mcp`.
+  Re-run with `BROWSER_CLIENT=codex` if registration is missing, then restart
+  Codex. Inspect project `.codex/config.toml` for an overriding server entry.
+- **Browser profile is already in use**: close the other session using that
+  profile, or configure a distinct relative profile for one client. Do not
+  delete a live browser's lock files.

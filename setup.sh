@@ -118,7 +118,7 @@ main() {
 
   _log "Claude Code"
   install_claude_code
-  install_claude_browser_skill
+  install_browser_skills
   install_claude_statusline
 
   _log "Tailscale"

@@ -60,6 +60,17 @@ install_claude_code() {
   fi
 }
 
+install_browser_skills() {
+  install_claude_browser_skill
+  install_codex_browser_skill
+}
+
+install_codex_browser_skill() {
+  mkdir -p "$HOME/.agents/skills/browser-use"
+  cp "$script_dir/claude/browser-use/SKILL.md" "$script_dir/claude/browser-use/setup.sh" \
+    "$HOME/.agents/skills/browser-use/"
+}
+
 install_claude_browser_skill() {
   mkdir -p "$HOME/.claude/skills/browser-use"
   cp "$script_dir/claude/browser-use/SKILL.md" "$script_dir/claude/browser-use/setup.sh" \
