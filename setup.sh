@@ -118,8 +118,13 @@ main() {
 
   _log "Claude Code"
   install_claude_code
-  install_browser_skills
   install_claude_statusline
+
+  _log "Codex"
+  install_codex
+
+  _log "Browser skills for Claude Code and Codex"
+  install_browser_skills
 
   _log "Tailscale"
   install_tailscale

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Package installation beyond the OS base image: apt packages, snaps, wine,
-# uv, Claude Code, Tailscale, Obsidian, whisrs, and docker group/runtime wiring.
+# uv, Claude Code, Codex, Tailscale, Obsidian, whisrs, and docker group/runtime wiring.
 # Sourced from setup.sh; relies on _log()/_have()/_have_nvidia_gpu()/_clone_or_update() from there.
 set -euo pipefail
 
@@ -57,6 +57,12 @@ install_uv() {
 install_claude_code() {
   if ! _have claude && ! _have claude-code; then
     curl -fsSL https://claude.ai/install.sh | bash
+  fi
+}
+
+install_codex() {
+  if ! _have codex; then
+    curl -fsSL https://chatgpt.com/codex/install.sh | sh
   fi
 }
 

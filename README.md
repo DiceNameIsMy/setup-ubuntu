@@ -2,7 +2,7 @@
 
 Scripts to provision a fresh Ubuntu desktop: base packages, zsh + oh-my-zsh,
 apt repos (Brave, VS Code, Docker, NVIDIA container toolkit, GitHub CLI),
-GNOME desktop config, and dev tooling (uv, Claude Code, Tailscale, Obsidian,
+GNOME desktop config, and dev tooling (uv, Claude Code, Codex, Tailscale, Obsidian,
 whisrs).
 
 Also clones and installs a Claude Code statusline
@@ -23,6 +23,7 @@ latter is sourced by the former):
 
 ```sh
 ./setup.sh install_apt_packages
+./setup.sh install_codex
 ./setup.sh configure_desktop
 ./setup.sh list          # show every available function
 ```
@@ -38,7 +39,10 @@ Install the shared browser-use skill for both clients:
 This copies the skill to `~/.claude/skills/browser-use` and
 `~/.agents/skills/browser-use` (Codex's
 [user skill directory](https://developers.openai.com/codex/skills)). The full
-setup also installs both copies. Codex itself must already be installed.
+setup also installs both copies and the Codex CLI. The standalone
+`install_codex` task uses the official
+[Codex installer](https://developers.openai.com/codex/cli) and skips installation
+when `codex` is already on `PATH`.
 The existing `install_claude_browser_skill` task remains available, alongside
 `install_codex_browser_skill`.
 
