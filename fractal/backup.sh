@@ -8,7 +8,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=backup.env
 source "$SCRIPT_DIR/backup.env"
 
 LIBRARY_DIR="$BACKUP_ROOT/library"
@@ -47,8 +46,10 @@ notify "Immich backup starting" "Syncing library from $REMOTE_HOST"
 rsync -a --delete --partial -e "ssh ${SSH_OPTS[*]}" \
   "$REMOTE_HOST:$REMOTE_UPLOAD_LOCATION/" "$LIBRARY_DIR/"
 
-ssh "${SSH_OPTS[@]}" "$REMOTE_HOST" \
-  "docker exec $REMOTE_DB_CONTAINER pg_dumpall --clean --if-exists -U $REMOTE_DB_USER" \
+printf -v dump_command 'docker exec %q pg_dumpall --clean --if-exists -U %q' \
+  "$REMOTE_DB_CONTAINER" "$REMOTE_DB_USER"
+printf '%s\n' "$dump_command" \
+  | ssh "${SSH_OPTS[@]}" "$REMOTE_HOST" bash -s \
   | gzip >"$DB_DUMP.tmp"
 mv "$DB_DUMP.tmp" "$DB_DUMP"
 

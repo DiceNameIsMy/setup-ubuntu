@@ -1,4 +1,4 @@
 # TODO
 
-- [x] Configure backups of the /data folder (see fractal/backup.sh + fractal/immich-backup.timer)
+- [x] Back up the remote Immich library and database into /data/immich-backup (see fractal/backup.sh + fractal/immich-backup.timer)
 - [ ] Test the STT (whisrs) feature

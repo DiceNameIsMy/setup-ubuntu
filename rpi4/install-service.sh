@@ -85,7 +85,7 @@ fi
 ensure_mount() {
   local uuid="$1" mountpoint="$2" fstype="$3" options="$4"
   mkdir -p "$mountpoint"
-  if ! grep -qs "^UUID=$uuid[[:space:]]" /etc/fstab; then
+  if ! grep -qs "^UUID=${uuid}[[:space:]]" /etc/fstab; then
     echo "UUID=$uuid $mountpoint $fstype $options 0 0" >> /etc/fstab
     systemctl daemon-reload
   fi

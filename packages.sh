@@ -4,6 +4,8 @@
 # Sourced from setup.sh; relies on _log()/_have()/_have_nvidia_gpu()/_clone_or_update() from there.
 set -euo pipefail
 
+packages_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 upgrade_apt_packages() {
   sudo apt upgrade -y
   sudo apt autoremove -y
@@ -15,7 +17,7 @@ install_base_packages() {
   sudo apt install -y \
     ubuntu-drivers-common ca-certificates curl wget \
     gnupg gnupg2 software-properties-common apt-transport-https \
-    git jq zsh python3 npm nodejs libturbojpeg0 \
+    git jq zsh python3 npm nodejs libturbojpeg0 shellcheck ripgrep \
     gnome-shell-extension-manager gnome-browser-connector
   sudo snap install telegram-desktop
 }
@@ -73,13 +75,13 @@ install_browser_skills() {
 
 install_codex_browser_skill() {
   mkdir -p "$HOME/.agents/skills/browser-use"
-  cp "$script_dir/claude/browser-use/SKILL.md" "$script_dir/claude/browser-use/setup.sh" \
+  cp "$packages_dir/claude/browser-use/SKILL.md" "$packages_dir/claude/browser-use/setup.sh" \
     "$HOME/.agents/skills/browser-use/"
 }
 
 install_claude_browser_skill() {
   mkdir -p "$HOME/.claude/skills/browser-use"
-  cp "$script_dir/claude/browser-use/SKILL.md" "$script_dir/claude/browser-use/setup.sh" \
+  cp "$packages_dir/claude/browser-use/SKILL.md" "$packages_dir/claude/browser-use/setup.sh" \
     "$HOME/.claude/skills/browser-use/"
 }
 
@@ -119,7 +121,7 @@ install_whisrs() {
   # only seed the template and run onboarding on first install -- don't
   # clobber an already-configured backend/API key on re-runs
   if [[ ! -f "$HOME/.config/whisrs/config.toml" ]]; then
-    cp "$script_dir/whisrs-config.toml" "$HOME/.config/whisrs/config.toml"
+    cp "$packages_dir/whisrs-config.toml" "$HOME/.config/whisrs/config.toml"
     whisrs setup
   fi
 }

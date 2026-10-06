@@ -33,6 +33,7 @@ _have() {
 }
 
 sudo apt update -y && sudo apt full-upgrade -y
+sudo apt install -y shellcheck ripgrep
 sudo rpi-eeprom-update -a
 
 # Reboot
@@ -41,7 +42,7 @@ sudo rpi-eeprom-update -a
 if ! _have docker; then
     curl -fsSL https://get.docker.com -o get-docker.sh
     sudo sh get-docker.sh
-    sudo usermod -aG docker $USER
+    sudo usermod -aG docker "$USER"
 fi
 
 if ! _have tailscale; then
@@ -74,9 +75,9 @@ sudo mkdir -p "/etc/systemd/system/syncthing@$(whoami).service.d"
 sudo cp "$script_dir/rpi4/syncthing-mount.conf" "/etc/systemd/system/syncthing@$(whoami).service.d/mount.conf"
 sudo systemctl daemon-reload
 
-sudo systemctl enable syncthing@$(whoami).service
-sudo systemctl start syncthing@$(whoami).service
-sudo systemctl status syncthing@$(whoami).service
+sudo systemctl enable "syncthing@$(whoami).service"
+sudo systemctl start "syncthing@$(whoami).service"
+sudo systemctl status "syncthing@$(whoami).service"
 
 # Expose a port on current device to configure syncthing via UI.
 ssh -L 8385:127.0.0.1:8384 nur@rpi

@@ -1,0 +1,4 @@
+# Scripts intentionally write literal variable references into shell config files.
+disable=SC2016
+# Resolve sibling files relative to the script that sources them.
+source-path=SCRIPTDIR

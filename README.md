@@ -85,3 +85,84 @@ and `.playwright-mcp/` from version control.
 Verify with `claude mcp list` and/or `codex mcp list`, then navigate and take a
 snapshot in a new session. Codex registration uses its documented
 [MCP CLI](https://developers.openai.com/codex/mcp).
+
+## Host setup and backups
+
+Keep this checkout at a stable path: installed systemd units refer to it.
+Track source `.service` and `.timer` files; installers render host-specific
+copies. Keep credentials in ignored `.env` files.
+
+On the Pi, copy `rpi4/.env.example` to `rpi4/.env`, set a strong database
+password, and confirm storage paths. Identify the SSD and HDD UUIDs with
+`lsblk -f`, then provision the Pi:
+
+```sh
+./rpi4.sh --ssd-uuid=<SSD_UUID> --hdd-uuid=<HDD_UUID>
+```
+
+This upgrades packages, installs services, and configures mounts. The script
+ends with an SSH tunnel for Syncthing; close it when finished. Ensure the
+library and database directories exist on the mounted drives before startup.
+After Docker group membership changes, log out and back in. To reinstall only
+Immich units and mount configuration:
+
+```sh
+sudo ./rpi4/install-service.sh --ssd-uuid=<SSD_UUID> --hdd-uuid=<HDD_UUID> "$USER"
+```
+
+On fractal, run desktop setup, confirm Docker GPU support and Tailscale login,
+and copy `fractal/.env.example` to `fractal/.env`. Then install the ML service:
+
+```sh
+sudo ./fractal/install-service.sh "$USER"
+```
+
+Configure the fractal ML endpoint in Immich Administration > Settings.
+`rpi4/run.sh` is a compatibility shortcut for `sudo systemctl start immich.service`.
+
+For backups, review the non-secret host and path settings in
+`fractal/backup.env`. The normal user needs passwordless SSH to the Pi,
+permission to read its library and run Docker there, and local write access to
+`BACKUP_ROOT`. Install `rsync`, `gzip`, and `libnotify-bin`, then run:
+
+```sh
+./fractal/backup.sh
+./fractal/install-backup-service.sh
+systemctl --user list-timers immich-backup.timer
+journalctl --user -u immich-backup.service
+```
+
+The timer runs monthly. Enable `loginctl enable-linger "$USER"` if it should
+run while logged out. This is a mirror of the remote Immich library plus a
+fresh database dump, not a backup of all `/data`; deleted remote files are
+removed from the mirror on the next successful sync.
+
+Verify a completed backup with:
+
+```sh
+./fractal/verify-restore.sh
+```
+
+Open `http://localhost:2284` and inspect albums and photos. The check uses a
+unique Compose project, a temporary database volume, and a read-only backup
+library. ML is disabled during verification. Uploads and other actions that
+write to the library are expected to fail. Press Enter to remove the temporary
+stack and volume. If cleanup fails, the script preserves its temporary
+configuration and reports its location. Keep the image versions in
+`fractal/verify-compose.yml` aligned with `rpi4/docker-compose.yml`.
+
+## Repository checks
+
+Desktop and Pi setup install ShellCheck and ripgrep; Docker Compose is installed
+with Docker. On existing hosts, install the new check dependencies with
+`sudo apt install shellcheck ripgrep`. Then run:
+
+```sh
+./scripts/check.sh
+```
+
+This checks Bash syntax, runs ShellCheck, and validates all three Compose
+configurations using dummy environment values. It does not start containers
+or execute provisioning scripts. `.shellcheckrc` disables SC2016 because the
+setup scripts intentionally write literal variable references into shell config
+files; other ShellCheck checks remain enabled.
