@@ -44,8 +44,18 @@ sed \
 
 echo "Installed $DEST for user '$TARGET_USER', workdir '$SCRIPT_DIR'."
 
+# Install the periodic updater alongside the startup service.
+UPDATE_NAME="${UNIT_NAME%.service}-update"
+for suffix in service timer; do
+  sed \
+    -e "s|__IMMICH_WORKDIR__|$SCRIPT_DIR|g" \
+    -e "s|__IMMICH_USER__|$TARGET_USER|g" \
+    "$SCRIPT_DIR/$UPDATE_NAME.$suffix" > "/etc/systemd/system/$UPDATE_NAME.$suffix"
+done
+
 systemctl daemon-reload
 systemctl enable --now "$UNIT_NAME"
+systemctl enable --now "$UPDATE_NAME.timer"
 
 echo "Enabled and started. Check status with: systemctl status $UNIT_NAME"
 echo "Tailscale serve mapping:"

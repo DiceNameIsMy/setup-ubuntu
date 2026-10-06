@@ -17,6 +17,29 @@ token usage, model, effort level, and git branch.
 
 Idempotent — safe to re-run.
 
+## Immich updates
+
+Both Immich stacks keep `IMMICH_VERSION=v3` in their `.env` files. Their
+startup services pull images before starting Compose, with a ten-minute
+pull timeout and fallback to cached images if the registry is unavailable.
+
+The `install-service.sh` scripts also install and enable a weekly restart
+service and timer for their host. Every Sunday between 04:00 and 04:30 local
+time, the timer restarts the main service, whose startup step pulls images.
+Missed runs are caught up when the timer next starts. An intentionally
+stopped stack is left alone. The Pi's main service retains its storage
+mount guards. Restarting briefly takes the stack and its Tailscale endpoint
+offline, including while images are pulled; a failed pull uses cached images.
+
+Inspect schedules with `systemctl list-timers 'immich*-update.timer'` and
+logs with `journalctl -u immich-update.service` on the Pi or
+`journalctl -u immich-ml-update.service` on fractal. Reinstall the service
+units to apply repository changes to a host; updating these files alone
+does not change installed services. PostgreSQL and Valkey retain their
+explicit image pins. Automatic updates do not take a backup; keep the
+separate backup timer enabled and review release notes for required
+Compose changes.
+
 Run a single step instead of the whole thing by naming its function
 (works for anything defined in `setup.sh` or `desktop.sh`, since the
 latter is sourced by the former):
