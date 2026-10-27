@@ -27,14 +27,15 @@ clients run concurrently; logins are independent.
 ## Prerequisites
 
 Install the Claude Code and/or Codex CLI and make it available on `PATH`.
-The setup installs nvm, Node and the browser into your home directory without
-sudo. A working graphical desktop and Chromium's system libraries are required
+The setup installs nvm and Node into your home directory without sudo.
+It downloads a browser unless `BROWSER_EXECUTABLE_PATH` selects an existing one. A working graphical desktop and Chromium's system libraries are required
 for the headed browser.
 
 ## Browser visibility (user preference)
 
 **Default to a headed browser visible on the user's desktop. Use headless mode
-only when the user explicitly requests it.** This applies to both Claude Code
+only when the user explicitly requests it, or when the user has chosen a
+headless server setup (such as this repository's Pi setup).** This applies to both Claude Code
 and Codex, including requests that simply say "open the browser".
 
 Verify the actual browser after connecting or launching. Successful navigation
@@ -62,7 +63,7 @@ Run the setup script alongside this skill from the intended project root.
 The repository installs identical copies at these locations:
 
 ```bash
-# Either copy registers every installed client (Claude Code and/or Codex).
+# Either copy registers Codex by default; select other existing clients explicitly.
 bash ~/.claude/skills/browser-use/setup.sh
 # Or, from Codex's user skill directory:
 bash ~/.agents/skills/browser-use/setup.sh
@@ -79,7 +80,8 @@ Safe to re-run. The script:
    Node binary and MCP script by absolute path, bypassing `npx`.
 
 Select a client with `BROWSER_CLIENT=claude` or `BROWSER_CLIENT=codex`.
-The default `auto` registers all installed clients; `both` requires both CLIs.
+The default `codex` registers Codex only; `auto` registers all installed clients,
+and `both` requires both CLIs.
 To override the project used for initial directory creation or the profile:
 
 ```bash
@@ -105,6 +107,18 @@ codex mcp get playwright
 Codex's list confirms configuration, not a successful browser launch. In a new
 session, check `/mcp`, then navigate to a page and take a snapshot to verify the
 connection end to end.
+
+For a headless Linux ARM64 server, install the distribution's Chromium first
+(`sudo apt-get install -y chromium` on the Pi), then run:
+
+```bash
+BROWSER_CLIENT=codex BROWSER_HEADLESS=1 BROWSER_EXECUTABLE_PATH=/usr/bin/chromium \
+  bash ~/.agents/skills/browser-use/setup.sh
+```
+
+This skips Chrome for Testing, which has no Linux ARM64 build. Headless mode is
+intentional on this server; do not attempt to start a desktop to make it visible.
+Desktop setups retain the headed default.
 
 ## Codex tool discovery
 

@@ -52,6 +52,10 @@ fi
 # because tailscale was already installed by a prior run
 sudo tailscale set --operator="$USER"
 
+# Codex and browser automation (headless Chromium on the Pi).
+bash "$script_dir/rpi4/setup-codex.sh"
+bash "$script_dir/rpi4/configure-headless.sh"
+
 # Immich (server + redis + db; ML runs remotely on fractal, see rpi4/.env)
 sudo "$script_dir/rpi4/install-service.sh" "--ssd-uuid=$ssd_uuid" "--hdd-uuid=$hdd_uuid" "$USER"
 

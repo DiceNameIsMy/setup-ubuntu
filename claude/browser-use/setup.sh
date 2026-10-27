@@ -6,7 +6,17 @@ set -euo pipefail
 
 NODE_VERSION=20
 PROJECT_DIR="${PROJECT_DIR:-$PWD}"
-BROWSER_CLIENT="${BROWSER_CLIENT:-auto}"
+BROWSER_CLIENT="${BROWSER_CLIENT:-codex}"
+BROWSER_HEADLESS="${BROWSER_HEADLESS:-0}"
+BROWSER_EXECUTABLE_PATH="${BROWSER_EXECUTABLE_PATH:-}"
+BROWSER_ARGS=()
+if [[ "$BROWSER_HEADLESS" = 1 ]]; then BROWSER_ARGS+=(--headless); fi
+if [[ -n "$BROWSER_EXECUTABLE_PATH" ]]; then
+  [[ -x "$BROWSER_EXECUTABLE_PATH" ]] || {
+    echo "Browser executable is not executable: $BROWSER_EXECUTABLE_PATH" >&2; exit 1;
+  }
+  BROWSER_ARGS+=("--executable-path=$BROWSER_EXECUTABLE_PATH")
+fi
 CLIENTS=()
 case "$BROWSER_CLIENT" in
   auto)
@@ -107,7 +117,9 @@ echo "playwright-mcp: $NODE_DIR/playwright-mcp"
 
 # 3. Chromium binary (the MCP server defaults to the "chrome-for-testing" channel, a
 #    separate download from Playwright's own bundled Chromium)
-"$NODE_DIR/node" "$NODE_DIR/playwright-mcp" install-browser chrome-for-testing
+if [[ -z "$BROWSER_EXECUTABLE_PATH" ]]; then
+  "$NODE_DIR/node" "$NODE_DIR/playwright-mcp" install-browser chrome-for-testing
+fi
 
 # npmrc no longer needed hidden -- nothing past this point touches npm.
 _restore_npmrc
@@ -123,18 +135,19 @@ for client in "${CLIENTS[@]}"; do
   echo "$client profile (this project): $PROJECT_DIR/$PROFILE_REL"
 
   if [ "$client" = claude ]; then
+    # Custom browser options must also replace an existing registration.
     CURRENT="$(claude mcp get playwright 2>/dev/null || true)"
-    if ! { grep -Fqx "  Command: $NODE_BIN" <<< "$CURRENT" &&
+    if [[ "${#BROWSER_ARGS[@]}" -gt 0 ]] || ! { grep -Fqx "  Command: $NODE_BIN" <<< "$CURRENT" &&
            grep -Fqx "  Args: $NODE_DIR/playwright-mcp --browser=chromium --user-data-dir=$PROFILE_REL" <<< "$CURRENT" &&
            grep -q 'Scope: User' <<< "$CURRENT"; }; then
       claude mcp remove playwright -s user >/dev/null 2>&1 || true
       claude mcp add playwright -s user -- "$NODE_BIN" "$NODE_DIR/playwright-mcp" \
-        --browser=chromium "--user-data-dir=$PROFILE_REL"
+        --browser=chromium "--user-data-dir=$PROFILE_REL" "${BROWSER_ARGS[@]}"
     fi
   else
     # Codex add replaces the named entry, retaining unrelated config settings.
     codex mcp add playwright -- "$NODE_BIN" "$NODE_DIR/playwright-mcp" \
-      --browser=chromium "--user-data-dir=$PROFILE_REL"
+      --browser=chromium "--user-data-dir=$PROFILE_REL" "${BROWSER_ARGS[@]}"
   fi
   echo "Registered playwright for $client. Verify with: $client mcp list"
 done

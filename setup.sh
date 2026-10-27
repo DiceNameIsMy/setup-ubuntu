@@ -5,6 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/zsh.sh"
 source "$script_dir/repos.sh"
 source "$script_dir/packages.sh"
+source "$script_dir/codex.sh"
 source "$script_dir/desktop.sh"
 
 _log() {
@@ -116,14 +117,10 @@ main() {
   _log "uv"
   install_uv
 
-  _log "Claude Code"
-  install_claude_code
-  install_claude_statusline
-
   _log "Codex"
   install_codex
 
-  _log "Browser skills for Claude Code and Codex"
+  _log "Browser skills for Codex"
   install_browser_skills
 
   _log "Tailscale"
