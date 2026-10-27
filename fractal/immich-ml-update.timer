@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly restart and container update for immich-ml
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=immich-ml-update.service
+
+[Install]
+WantedBy=timers.target

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Shared Codex installation and optional remote access. Sourced by setup.sh
-# and rpi4/setup-codex.sh; script_dir points to the repository root.
+# and rpi4/setup-codex.sh.
+codex_setup_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 install_codex() {
   export PATH="$HOME/.local/bin:$PATH"
@@ -15,7 +16,7 @@ install_browser_skills() {
 
 install_codex_browser_skill() {
   mkdir -p "$HOME/.agents/skills/browser-use"
-  cp "$script_dir/claude/browser-use/SKILL.md" "$script_dir/claude/browser-use/setup.sh" \
+  cp "$codex_setup_dir/claude/browser-use/SKILL.md" "$codex_setup_dir/claude/browser-use/setup.sh" \
     "$HOME/.agents/skills/browser-use/"
 }
 

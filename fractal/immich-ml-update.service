@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly restart of immich-ml to refresh container images
+
+[Service]
+Type=oneshot
+# Run as root to restart the system service; Compose runs as its configured user.
+# try-restart leaves an intentionally stopped stack alone.
+ExecStart=/usr/bin/systemctl try-restart immich-ml.service
+TimeoutStartSec=1200
